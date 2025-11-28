@@ -2,17 +2,24 @@
 Configuración centralizada del sistema de backup
 """
 import logging
+import os
 from pathlib import Path
-
+from dotenv import load_dotenv, find_dotenv
 
 class Config:
     """Configuración centralizada del sistema"""
 
-    BASE_DIR = Path(__file__).parent.parent
-    BACKUP_DIR = BASE_DIR / "Backups"
+    ENV_FILE = find_dotenv()
+
+    # Cargar variables de entorno desde la raíz real del proyecto
+    load_dotenv(ENV_FILE)
+
+    # BASE_DIR debe ser la raíz donde está main.py
+    BASE_DIR = Path(ENV_FILE).parent if ENV_FILE else Path(__file__).resolve().parents[2]
+
+    BACKUP_DIR = Path(os.getenv("BACKUP_DIR")) if os.getenv("BACKUP_DIR") else (BASE_DIR / "Backups")
     LOG_DIR = BASE_DIR / "Logs"
     CONFIG_FILE = BASE_DIR / "config.json"
-    ENV_FILE = BASE_DIR / ".env"
 
     MAX_BACKUP_DAYS = 7  # Dias de retención de backups
     BACKUP_HOUR = "02:00"  # Hora de ejecución del backup
@@ -25,13 +32,13 @@ class Config:
     DEFAULT_CONFIG = {
         "databases": [
             {
-                "name": "VCashPRD",
+                "name": "VCash",
                 "type": "sqlserver",
                 "host": "WIN-OCH96NT6EBI\\VATCOPRD",
                 "port": 1433,
                 "user": "${DB_USER}",
                 "password": "${DB_PASSWORD}",
-                "database": "VCashAppDb",
+                "database": "VCash",
                 "enabled": True
             }
         ],
