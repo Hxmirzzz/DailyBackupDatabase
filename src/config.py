@@ -36,13 +36,13 @@ class Config:
     DEFAULT_CONFIG = {
         "databases": [
             {
-                "name": "VCash",
+                "name": "ACCSA2MASTER",
                 "type": "sqlserver",
-                "host": "WIN-OCH96NT6EBI\\VATCOPRD",
+                "host": "VATCOSVR05\\SQLSBCET",
                 "port": 1433,
                 "user": "${DB_USER}",
                 "password": "${DB_PASSWORD}",
-                "database": "VCash",
+                "database": "ACCSA2MASTER",
                 "enabled": True
             }
         ],
