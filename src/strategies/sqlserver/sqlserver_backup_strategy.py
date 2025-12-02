@@ -10,6 +10,8 @@ from .procedures_generator import StoredProcedureGenerator
 from .foreign_keys_generator import ForeignKeyGenerator
 from .triggers_generator import TriggerGenerator
 
+from .views_generator import ViewGenerator
+
 from ..base_strategy import BackupStrategy
 from ...models import DatabaseConfig, BackupResult
 
@@ -41,6 +43,7 @@ class SQLServerBackupStrategy(BackupStrategy):
                 procs = StoredProcedureGenerator(self.logger)
                 fks = ForeignKeyGenerator(self.logger)
                 triggers = TriggerGenerator(self.logger)
+                views = ViewGenerator(self.logger)
 
                 # Ejecutar en orden correcto
                 schema.generate(conn, script_file)
@@ -49,6 +52,7 @@ class SQLServerBackupStrategy(BackupStrategy):
                 indexes.generate(conn, script_file)
                 procs.generate(conn, script_file)
                 triggers.generate(conn, script_file)
+                views.generate(conn, script_file)
                 fks.generate(conn, script_file)
 
                 size_mb = script_file.stat().st_size / (1024 * 1024)

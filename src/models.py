@@ -2,9 +2,7 @@
 Modelos de datos del sistema
 """
 from dataclasses import dataclass
-from multiprocessing import Value
 from typing import Optional
-
 
 @dataclass
 class DatabaseConfig:

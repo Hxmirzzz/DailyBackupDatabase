@@ -80,6 +80,14 @@ class SQLServerBackupStrategy(BackupStrategy):
                 self._generate_stored_procedures(conn, script_file)
                 self._generate_foreign_keys(conn, script_file)
                 self._generate_triggers(conn, script_file)
+                self._generate_views(conn, script_file)
+                self._generate_functions(conn, script_file)
+                self._generate_types(conn, script_file)
+                self._generate_synonyms(conn, script_file)
+                self._generate_sequences(conn, script_file)
+                self._generate_schemas(conn, script_file)
+                self._generate_roles(conn, script_file)
+                self._generate_permissions(conn, script_file)
                 
                 file_size = script_file.stat().st_size / (1024 * 1024)
                 self.logger.info(f"✓ Backup completado: {script_file.name} ({file_size:.2f} MB)")
@@ -559,4 +567,378 @@ class SQLServerBackupStrategy(BackupStrategy):
 
         except Exception as e:
             self.logger.warning(f"Error generando TRIGGERS: {e}")
+            return False
+
+    def _generate_views(self, conn, script_file: Path):
+        """Genera todas las VIEWS de la base de datos"""
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    s.name AS schema_name,
+                    v.name AS view_name,
+                    m.definition
+                FROM sys.views v
+                INNER JOIN sys.schemas s ON s.schema_id = v.schema_id
+                INNER JOIN sys.sql_modules m ON m.object_id = v.object_id
+                ORDER BY s.name, v.name
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                self.logger.info("No se encontraron VIEWS.")
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- =============================================\n")
+                f.write("-- VIEWS\n")
+                f.write("-- =============================================\n\n")
+
+                for schema, view, definition in rows:
+                    f.write(
+                        f"IF OBJECT_ID('[{schema}].[{view}]', 'V') IS NOT NULL\n"
+                        f"    DROP VIEW [{schema}].[{view}];\nGO\n\n"
+                    )
+                    f.write(definition + "\nGO\n\n")
+
+            self.logger.info(f"✓ Exportadas {len(rows)} views")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error generando views: {e}")
+            return False
+
+    def _generate_functions(self, conn, script_file: Path):
+        """Genera SCALAR + TABLE-VALUED FUNCTIONS"""
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    s.name AS schema_name,
+                    o.name AS func_name,
+                    m.definition,
+                    o.type
+                FROM sys.objects o
+                INNER JOIN sys.schemas s ON s.schema_id = o.schema_id
+                INNER JOIN sys.sql_modules m ON m.object_id = o.object_id
+                WHERE o.type IN ('FN', 'IF', 'TF')
+                ORDER BY s.name, o.name
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                self.logger.info("No se encontraron FUNCTIONS.")
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- =============================================\n")
+                f.write("-- FUNCTIONS\n")
+                f.write("-- =============================================\n\n")
+
+                for schema, name, definition, ftype in rows:
+                    drop_map = {
+                        "FN": "FUNCTION",
+                        "IF": "FUNCTION",
+                        "TF": "FUNCTION"
+                    }
+
+                    f.write(
+                        f"IF OBJECT_ID('[{schema}].[{name}]', '{ftype}') IS NOT NULL\n"
+                        f"    DROP {drop_map[ftype]} [{schema}].[{name}];\nGO\n\n"
+                    )
+                    f.write(definition + "\nGO\n\n")
+
+            self.logger.info(f"✓ Exportadas {len(rows)} funciones")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error generando funciones: {e}")
+            return False
+
+    def _generate_types(self, conn, script_file: Path):
+        """Genera USER-DEFINED TYPES"""
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    s.name AS schema_name,
+                    t.name,
+                    TYPE_NAME(t.user_type_id) AS base_type,
+                    t.max_length,
+                    t.precision,
+                    t.scale
+                FROM sys.types t
+                INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
+                WHERE t.is_user_defined = 1
+                ORDER BY s.name, t.name
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                self.logger.info("No se encontraron TYPES.")
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- =============================================\n")
+                f.write("-- USER DEFINED TYPES\n")
+                f.write("-- =============================================\n\n")
+
+                for schema, name, base, maxlen, prec, scale in rows:
+                    f.write(
+                        f"DROP TYPE IF EXISTS [{schema}].[{name}];\nGO\n"
+                    )
+
+                    if maxlen > 0:
+                        type_def = f"{base}({maxlen})"
+                    elif prec > 0:
+                        type_def = f"{base}({prec},{scale})"
+                    else:
+                        type_def = base
+
+                    f.write(
+                        f"CREATE TYPE [{schema}].[{name}] FROM {type_def};\nGO\n\n"
+                    )
+
+            self.logger.info(f"✓ Exportados {len(rows)} tipos")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error generando types: {e}")
+            return False
+
+    def _generate_synonyms(self, conn, script_file: Path):
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    s.name,
+                    syn.name,
+                    syn.base_object_name
+                FROM sys.synonyms syn
+                INNER JOIN sys.schemas s ON s.schema_id = syn.schema_id
+                ORDER BY s.name, syn.name
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- SYNONYMS\n\n")
+
+                for schema, name, target in rows:
+                    f.write(
+                        f"DROP SYNONYM IF EXISTS [{schema}].[{name}];\nGO\n"
+                        f"CREATE SYNONYM [{schema}].[{name}] FOR {target};\nGO\n\n"
+                    )
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error generando synonyms: {e}")
+            return False
+
+    def _generate_sequences(self, conn, script_file: Path):
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    s.name,
+                    seq.name,
+                    seq.start_value,
+                    seq.increment,
+                    seq.minimum_value,
+                    seq.maximum_value,
+                    seq.is_cycling,
+                    seq.cache_size
+                FROM sys.sequences seq
+                INNER JOIN sys.schemas s ON s.schema_id = seq.schema_id
+                ORDER BY s.name, seq.name
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- SEQUENCES\n\n")
+
+                for schema, name, start, inc, minv, maxv, cycle, cache in rows:
+
+                    cycle_str = "CYCLE" if cycle else "NO CYCLE"
+
+                    f.write(
+                        f"DROP SEQUENCE IF EXISTS [{schema}].[{name}];\nGO\n"
+                        f"CREATE SEQUENCE [{schema}].[{name}]\n"
+                        f"    START WITH {start}\n"
+                        f"    INCREMENT BY {inc}\n"
+                        f"    MINVALUE {minv}\n"
+                        f"    MAXVALUE {maxv}\n"
+                        f"    {cycle_str}\n"
+                        f"    CACHE {cache};\nGO\n\n"
+                    )
+
+            return True
+
+        except Exception as e:
+            self.logger.error("Error generando sequences: " + str(e))
+            return False
+
+    def _generate_sequences(self, conn, script_file: Path):
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    s.name,
+                    seq.name,
+                    seq.start_value,
+                    seq.increment,
+                    seq.minimum_value,
+                    seq.maximum_value,
+                    seq.is_cycling,
+                    seq.cache_size
+                FROM sys.sequences seq
+                INNER JOIN sys.schemas s ON s.schema_id = seq.schema_id
+                ORDER BY s.name, seq.name
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- SEQUENCES\n\n")
+
+                for schema, name, start, inc, minv, maxv, cycle, cache in rows:
+                    cycle_str = "CYCLE" if cycle else "NO CYCLE"
+                    f.write(
+                        f"DROP SEQUENCE IF EXISTS [{schema}].[{name}];\nGO\n"
+                        f"CREATE SEQUENCE [{schema}].[{name}]\n"
+                        f"    START WITH {start}\n"
+                        f"    INCREMENT BY {inc}\n"
+                        f"    MINVALUE {minv}\n"
+                        f"    MAXVALUE {maxv}\n"
+                        f"    {cycle_str}\n"
+                        f"    CACHE {cache};\nGO\n\n"
+                    )
+
+            return True
+
+        except Exception as e:
+            self.logger.error("Error generando sequences: " + str(e))
+            return False
+
+    def _generate_schemas(self, conn, script_file: Path):
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT name 
+                FROM sys.schemas 
+                WHERE principal_id <> 1   -- evitar dbo
+                ORDER BY name
+            """)
+
+            schemas = [s[0] for s in cursor.fetchall()]
+
+            if not schemas:
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- SCHEMAS\n\n")
+
+                for schema in schemas:
+                    f.write(
+                        f"IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = '{schema}')\n"
+                        f"    EXEC('CREATE SCHEMA [{schema}]');\nGO\n\n"
+                    )
+
+            return True
+
+        except Exception as e:
+            self.logger.error("Error generando schemas: " + str(e))
+            return False
+
+    def _generate_roles(self, conn, script_file: Path):
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT name 
+                FROM sys.database_principals 
+                WHERE type = 'R' 
+                  AND name NOT IN ('public')
+                ORDER BY name
+            """)
+
+            roles = [r[0] for r in cursor.fetchall()]
+
+            if not roles:
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- ROLES\n\n")
+
+                for r in roles:
+                    f.write(
+                        f"IF NOT EXISTS(SELECT 1 FROM sys.database_principals WHERE name = '{r}')\n"
+                        f"    CREATE ROLE [{r}];\nGO\n\n"
+                    )
+
+            return True
+
+        except Exception as e:
+            self.logger.error("Error generando roles: " + str(e))
+            return False
+
+    def _generate_permissions(self, conn, script_file: Path):
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT 
+                    dp.name AS principal,
+                    perm.permission_name,
+                    perm.state_desc,
+                    obj.type_desc,
+                    obj.name AS object_name
+                FROM sys.database_permissions perm
+                INNER JOIN sys.database_principals dp ON perm.grantee_principal_id = dp.principal_id
+                LEFT JOIN sys.objects obj ON perm.major_id = obj.object_id
+                WHERE dp.name NOT IN ('public')
+                ORDER BY dp.name, perm.permission_name
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                return True
+
+            with open(script_file, "a", encoding="utf-8") as f:
+                f.write("\n-- PERMISSIONS\n\n")
+
+                for principal, perm, state, objtype, objname in rows:
+                    if objname:
+                        f.write(
+                            f"GRANT {perm} ON [{objname}] TO [{principal}];\n"
+                        )
+                    else:
+                        f.write(
+                            f"GRANT {perm} TO [{principal}];\n"
+                        )
+
+                f.write("GO\n\n")
+
+            return True
+
+        except Exception as e:
+            self.logger.error("Error generando permissions: " + str(e))
             return False

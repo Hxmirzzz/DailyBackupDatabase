@@ -48,7 +48,7 @@ class Config:
         ],
         "backup_settings": {
             "retention_days": 30,  # Retención de 30 días
-            "schedule": ["02:00", "14:00"],
+            "schedule": ["02:00", "02:30"],
             "compress": True,
             "annual_backup_enabled": True,  # Habilitar backups anuales
             "annual_backup_date": "01-01",  # Primer día del año

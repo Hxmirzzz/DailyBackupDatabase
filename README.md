@@ -1,4 +1,4 @@
-# 🗄️ DailyBackupDatabase — Automatic SQL Server Backup Engine
+# 🗄️ QuantumDB — Automatic SQL Server Backup Engine
 
 Sistema profesional de backup automático para bases de datos SQL Server, que genera scripts SQL completos con estructura, datos y objetos del esquema.
 Diseñado con principios SOLID, arquitectura limpia y fácil extensión.

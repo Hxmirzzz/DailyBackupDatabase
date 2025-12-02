@@ -45,8 +45,8 @@ class SchedulerService:
         self.logger.info("SERVICIO DE BACKUP AUTOMÁTICO INICIADO")
         self.logger.info("=" * 70)
         self.logger.info(f"Backups diarios programados: {len(schedules)}")
-        for time in schedules:
-            self.logger.info(f"  - A las {time}")
+        for scheduled_time in schedules:
+            self.logger.info(f"  - A las {scheduled_time}")
         self.logger.info(f"Retención de backups diarios: {self.backup_service.backup_settings.retention_days} días")
         
         if annual_enabled:

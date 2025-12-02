@@ -2,7 +2,6 @@
 Repositorio para manejar configuración (Dependency Inversion)
 """
 import json
-from optparse import Option
 import os
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -108,11 +107,11 @@ class ConfigRepository:
         if self._raw_config is None:
             self.load()
 
-        settings_dict = self._raw_config.get('backup-settings', {})
+        settings_dict = self._raw_config.get('backup_settings', {})
         try:
             return BackupSettings(
                 retention_days=settings_dict.get('retention_days', 30),
-                schedule=settings_dict.get('schedule', '02:00'),
+                schedule=settings_dict.get('schedule', ["02:00"]),
                 compress=settings_dict.get('compress', True),
                 annual_backup_date=settings_dict.get('annual_backup_date', '01-01'),
                 keep_annual_backups=settings_dict.get('keep_annual_backups', True)
