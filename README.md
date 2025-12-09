@@ -99,7 +99,7 @@ venv/
 
 ```bash
 git clone https://github.com/Hxmirzzz/DailyBackupDatabase.git
-cd DailyBackupDatabase
+cd QuantumDB
 
 python -m venv venv
 venv\Scripts\activate    # Windows

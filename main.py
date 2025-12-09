@@ -169,6 +169,21 @@ def show_statistics(backup_service: BackupService):
 
 def main():
     """Función principal"""
+    try:
+        # Reconfigurar stdout (lo que va a service_stdout.log)
+        if sys.stdout.encoding.lower() != 'utf-8':
+            sys.stdout.reconfigure(encoding='utf-8')
+            
+        # Reconfigurar stderr (lo que va a service_stderr.log)
+        if sys.stderr.encoding.lower() != 'utf-8':
+            sys.stderr.reconfigure(encoding='utf-8')
+            
+    except Exception as e:
+        # Esto previene fallos si el entorno del servicio es muy restrictivo
+        # o si la función reconfigure no está disponible.
+        # En caso de fallar, el error de Unicode podría persistir, pero el programa continúa.
+        pass
+    
     args = parse_arguments()
     
     # Modo inicialización
